@@ -58,7 +58,7 @@ struct RenderContext {
     viewport: Viewport,
 }
 
-pub struct App {
+pub struct App<'a> {
     context: VulkanoContext,
     windows: VulkanoWindows,
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
@@ -76,10 +76,11 @@ pub struct App {
     rng: rand::rngs::ThreadRng,
     drone: f32,
     state: State,
+    config: &'a crate::config::Config,
 }
 
-impl App {
-    pub fn new(_event_loop: &EventLoop<()>, tx: std::sync::mpsc::Sender<crate::Request>) -> Self {
+impl<'a> App<'a> {
+    pub fn new(_event_loop: &EventLoop<()>, tx: std::sync::mpsc::Sender<crate::Request>, config: &'a crate::config::Config) -> Self {
         let context = VulkanoContext::new(VulkanoConfig::default());
 
         let windows = VulkanoWindows::default();
@@ -148,6 +149,7 @@ impl App {
             rng: rand::rng(),
             drone: 0.0,
             state: State::Playground,
+            config,
         }
     }
 }
@@ -244,7 +246,7 @@ fn random_active_note(activated: u64, rng: &mut rand::rngs::ThreadRng, last: Opt
     }
 }
 
-impl ApplicationHandler for App {
+impl<'a> ApplicationHandler for App<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(primary_window_id) = self.windows.primary_window_id() {
             self.windows.remove_renderer(primary_window_id);
@@ -599,7 +601,8 @@ impl ApplicationHandler for App {
                                 new_quad.corner[0] + new_quad.size[0] / 2.0,
                                 new_quad.corner[1] + new_quad.size[1] / 2.0,
                             ];
-                            let multiplier = 0.08 * (self.last_frame.elapsed().as_nanos() / (1_000_000_000 / 240)) as f32;
+                            let multiplier = self.config.animation.selector.unwrap_or(0.1) 
+                                * (self.last_frame.elapsed().as_nanos() as f32 / (1_000_000_000 / 240) as f32);
                             self.last_frame = std::time::Instant::now();
                             self.position[0] += (target[0] - self.position[0]) * multiplier;
                             self.position[1] += (target[1] - self.position[1]) * multiplier;

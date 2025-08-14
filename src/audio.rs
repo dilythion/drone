@@ -43,31 +43,33 @@ impl Oscillation {
         assert!(self.frequency > 50.0 && self.frequency < 20_000.0);
     }
 
-    fn tick(&mut self) -> f32 {
+    fn tick(&mut self, config: &crate::config::Config) -> f32 {
         self.phase = (self.phase + self.frequency / self.sample_rate) % 1.0;
         self.time += 1.0 / self.sample_rate;
-        sine(self.phase) 
-        + sine(self.phase * 2.0) * 0.2
-        + sine(self.phase * 3.0) * 0.5
-        + sine(self.phase * 4.0) * 0.1
+        let mut output = sine(self.phase);
+        let overtones = config.sound.overtones.as_deref().unwrap_or(&[0.2, 0.5, 0.1]);
+        for (i, volume) in overtones.iter().enumerate() {
+            output += sine(self.phase * i as f32) * volume;
+        }
+        output
     }
 }
 
-pub fn stream_setup_for(rx: std::sync::mpsc::Receiver<crate::Request>) -> Result<cpal::Stream, anyhow::Error> {
+pub fn stream_setup_for(rx: std::sync::mpsc::Receiver<crate::Request>, app_config: crate::config::Config) -> Result<cpal::Stream, anyhow::Error> {
     let (_host, device, config) = host_device_setup()?;
 
     type Format = cpal::SampleFormat;
     match config.sample_format() {
-        Format::I8  => make_stream::<i8>    (&device, &config.into(), rx),
-        Format::I16 => make_stream::<i16>   (&device, &config.into(), rx),
-        Format::I32 => make_stream::<i32>   (&device, &config.into(), rx),
-        Format::I64 => make_stream::<i64>   (&device, &config.into(), rx),
-        Format::U8  => make_stream::<u8>    (&device, &config.into(), rx),
-        Format::U16 => make_stream::<u16>   (&device, &config.into(), rx),
-        Format::U32 => make_stream::<u32>   (&device, &config.into(), rx),
-        Format::U64 => make_stream::<u64>   (&device, &config.into(), rx),
-        Format::F32 => make_stream::<f32>   (&device, &config.into(), rx),
-        Format::F64 => make_stream::<f64>   (&device, &config.into(), rx),
+        Format::I8  => make_stream::<i8>    (&device, &config.into(), rx, app_config),
+        Format::I16 => make_stream::<i16>   (&device, &config.into(), rx, app_config),
+        Format::I32 => make_stream::<i32>   (&device, &config.into(), rx, app_config),
+        Format::I64 => make_stream::<i64>   (&device, &config.into(), rx, app_config),
+        Format::U8  => make_stream::<u8>    (&device, &config.into(), rx, app_config),
+        Format::U16 => make_stream::<u16>   (&device, &config.into(), rx, app_config),
+        Format::U32 => make_stream::<u32>   (&device, &config.into(), rx, app_config),
+        Format::U64 => make_stream::<u64>   (&device, &config.into(), rx, app_config),
+        Format::F32 => make_stream::<f32>   (&device, &config.into(), rx, app_config),
+        Format::F64 => make_stream::<f64>   (&device, &config.into(), rx, app_config),
         sample_format => Err(anyhow::Error::msg(format!("unsupported sample format {sample_format}"))),
     }
 }
@@ -91,6 +93,7 @@ pub fn make_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     rx: std::sync::mpsc::Receiver<crate::Request>,
+    app_config: crate::config::Config,
 ) -> Result<cpal::Stream, anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
@@ -116,7 +119,7 @@ where
                     crate::Request::SetDrone(frequency) => drone.set_frequency(frequency),
                 }
             }
-            process_frame(output, &mut notes, num_channels, &mut drone)
+            process_frame(output, &mut notes, num_channels, &mut drone, &app_config)
         },
         err_fn,
         None,
@@ -130,13 +133,14 @@ fn process_frame<SampleType>(
     notes: &mut Vec<Oscillation>,
     num_channels: usize,
     drone: &mut Oscillation,
+    config: &crate::config::Config,
 ) where
     SampleType: Sample + FromSample<f32>,
 {
     for frame in output.chunks_mut(num_channels) {
-        let mut pressure = drone.tick(); 
+        let mut pressure = drone.tick(config); 
         for note in &mut *notes {
-            pressure += softened_volume(note.time) * note.tick();
+            pressure += softened_volume(note.time) * note.tick(config);
         }
         pressure *= 0.2;
         pressure = pressure.min(1.0);
