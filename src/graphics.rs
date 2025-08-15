@@ -583,7 +583,8 @@ impl<'a> ApplicationHandler for App<'a> {
                             } else { 
                                 match self.state {
                                     State::Guessed { answer, .. } => {
-                                        if [x as u8, y as u8] == answer {
+                                        if [x as u8, y as u8] == answer 
+                                            || (answer[0] == 0 && x == 12 && y as u8 == answer[1]) {
                                             color 
                                         } else {
                                             multiply_brightness(color, 0.1) 
