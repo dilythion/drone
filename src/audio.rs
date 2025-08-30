@@ -11,10 +11,12 @@ fn sine(phase: f32) -> f32 {
     value
 }
 
-fn softened_volume(time: f32) -> f32 {
+fn softened_volume(time: f32, config: &crate::config::Config) -> f32 {
+    let intro = config.sound.duration.unwrap_or(2.0) * 0.1;
+    let end = config.sound.duration.unwrap_or(2.0) - intro;
     match time {
-        x if x < 0.2 => x / 0.2,
-        x if x > 1.8 => (1.0 - (x - 1.8) / 0.2).max(0.0),
+        x if x < intro => x / intro,
+        x if x > end => (1.0 - (x - end) / intro).max(0.0),
         _ => 1.0,
     }
 }
@@ -109,7 +111,7 @@ where
         config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
             for i in (0..notes.len()).rev() {
-                if notes[i].time > 2.0 {
+                if notes[i].time > app_config.sound.duration.unwrap_or(2.0) {
                     notes.remove(i);
                 }
             }
@@ -138,11 +140,11 @@ fn process_frame<SampleType>(
     SampleType: Sample + FromSample<f32>,
 {
     for frame in output.chunks_mut(num_channels) {
-        let mut pressure = drone.tick(config); 
+        let mut pressure = drone.tick(config) * config.sound.drone.unwrap_or(0.8); 
         for note in &mut *notes {
-            pressure += softened_volume(note.time) * note.tick(config);
+            pressure += softened_volume(note.time, config) * note.tick(config);
         }
-        pressure *= 0.2;
+        pressure *= config.sound.compression.unwrap_or(0.1);
         pressure = pressure.min(1.0);
         let value: SampleType = SampleType::from_sample(pressure);
         for sample in frame.iter_mut() { *sample = value; }

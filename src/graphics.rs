@@ -141,7 +141,7 @@ impl<'a> App<'a> {
             selected: [0; 2],
             position: [0.0; 2],
             directions: [Direction::default(); 4],
-            activated: 0b000000000000_111111111111_111111111111_000000000000,
+            activated: 0b000000000000_111111111111_000000000000_000000000000,
             motion_count: None,
             motion_command: None,
             last_frame: std::time::Instant::now(),

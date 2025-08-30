@@ -25,4 +25,7 @@ pub struct Animation {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Sound {
     pub overtones: Option<Vec<f32>>,
+    pub drone: Option<f32>,
+    pub compression: Option<f32>,
+    pub duration: Option<f32>,
 }
